@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use tracing::{debug, error, trace, instrument, info, warn};
-use futures_util::stream::{Stream, select_all};
+use futures_util::stream::{BoxStream, Stream, select_all};
 use once_cell::sync::Lazy;
 use futures_util::future::{Either, err, join_all};
 use futures_util::stream::{StreamExt, once, iter};
@@ -48,7 +48,7 @@ pub struct PartitionConsumer<P = SpuPool> {
 
 impl<P> PartitionConsumer<P>
 where
-    P: SpuDirectory,
+    P: SpuDirectory + 'static,
 {
     pub fn new(
         topic: String,
@@ -119,11 +119,11 @@ where
     pub async fn stream(
         &self,
         offset: Offset,
-    ) -> Result<impl Stream<Item = Result<Record, ErrorCode>>> {
+    ) -> Result<BoxStream<'static, Result<Record, ErrorCode>>> {
         let config = ConsumerConfig::builder().build()?;
         let stream = self.stream_with_config(offset, config).await?;
 
-        Ok(stream)
+        Ok(stream.boxed())
     }
 
     /// Continuously streams events from a particular offset in the consumer's partition
